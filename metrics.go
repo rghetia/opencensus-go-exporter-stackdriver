@@ -29,7 +29,7 @@ import (
 	"go.opencensus.io/stats"
 	"go.opencensus.io/trace"
 
-	monitoring "cloud.google.com/go/monitoring/apiv3"
+	"cloud.google.com/go/monitoring/apiv3"
 	distributionpb "google.golang.org/genproto/googleapis/api/distribution"
 	labelpb "google.golang.org/genproto/googleapis/api/label"
 	googlemetricpb "google.golang.org/genproto/googleapis/api/metric"
@@ -39,6 +39,7 @@ import (
 	commonpb "github.com/census-instrumentation/opencensus-proto/gen-go/agent/common/v1"
 	metricspb "github.com/census-instrumentation/opencensus-proto/gen-go/metrics/v1"
 	resourcepb "github.com/census-instrumentation/opencensus-proto/gen-go/resource/v1"
+	"strings"
 )
 
 var errNilMetric = errors.New("expecting a non-nil metric")
@@ -263,6 +264,11 @@ func (se *statsExporter) createMetricDescriptor(ctx context.Context, metric *met
 
 	name := metric.GetMetricDescriptor().GetName()
 	if _, created := se.protoMetricDescriptors[name]; created {
+		return nil
+	}
+
+	if strings.HasPrefix(name, "appengine.googleapis.com") {
+		fmt.Printf("appengine metrics\n")
 		return nil
 	}
 
