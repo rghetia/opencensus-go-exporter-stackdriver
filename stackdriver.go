@@ -55,7 +55,7 @@ import (
 	"time"
 
 	traceapi "cloud.google.com/go/trace/apiv2"
-	"contrib.go.opencensus.io/exporter/stackdriver/monitoredresource"
+	"github.com/rghetia/opencensus-go-exporter-stackdriver/monitoredresource"
 	"go.opencensus.io/stats/view"
 	"go.opencensus.io/tag"
 	"go.opencensus.io/trace"

@@ -20,7 +20,7 @@ import (
 	"testing"
 	"time"
 
-	"contrib.go.opencensus.io/exporter/stackdriver/monitoredresource"
+	"github.com/rghetia/opencensus-go-exporter-stackdriver/monitoredresource"
 
 	"cloud.google.com/go/monitoring/apiv3"
 	"github.com/golang/protobuf/ptypes/timestamp"
