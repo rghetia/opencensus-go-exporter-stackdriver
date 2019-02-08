@@ -23,7 +23,8 @@ import (
 	"log"
 	"time"
 
-	"contrib.go.opencensus.io/exporter/stackdriver"
+        //"contrib.go.opencensus.io/exporter/stackdriver"
+        stackdriver "github.com/rghetia/opencensus-go-exporter-stackdriver"
 	"contrib.go.opencensus.io/exporter/stackdriver/monitoredresource"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/stats/view"
