@@ -351,7 +351,7 @@ func (e *statsExporter) createMeasure(ctx context.Context, v *view.View) error {
 		dmd, err = createMetricDescriptor(ctx, e.c, cmrdesc)
 	}
 	if err != nil {
-		return err
+		return errors.New(fmt.Sprintf("SD err: %v for metric %s", err, inMD.Type))
 	}
 
 	// Now cache the metric descriptor
