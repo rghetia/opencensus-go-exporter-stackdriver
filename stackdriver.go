@@ -254,6 +254,9 @@ type Options struct {
 	// The MonitoredResource field is ignored if this field is set to a non-nil
 	// value.
 	GetMonitoredResource func(*view.View, []tag.Tag) ([]tag.Tag, monitoredresource.Interface)
+
+	// EnableStats enables collecting stats related to exporting.
+	EnableStats bool
 }
 
 const defaultTimeout = 5 * time.Second
@@ -323,6 +326,10 @@ func NewExporter(o Options) (*Exporter, error) {
 		res.Labels[stackdriverGenericTaskID] = getTaskValue()
 
 		o.Resource = o.MapResource(res)
+	}
+
+	if o.EnableStats {
+		view.Register(stackdriverViews...)
 	}
 
 	se, err := newStatsExporter(o)

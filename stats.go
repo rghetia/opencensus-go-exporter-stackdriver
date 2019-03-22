@@ -233,6 +233,7 @@ func (se *statsExporter) makeReq(vds []*view.Data, limit int) []*monitoringpb.Cr
 		if len(timeSeries) == limit {
 			ctsreql := se.combineTimeSeriesToCreateTimeSeriesRequest(timeSeries)
 			reqs = append(reqs, ctsreql...)
+			stats.Record(context.Background(), timeSeriesPerRequest.M(int64(limit)))
 			timeSeries = timeSeries[:0]
 		}
 	}
@@ -240,6 +241,7 @@ func (se *statsExporter) makeReq(vds []*view.Data, limit int) []*monitoringpb.Cr
 	if len(timeSeries) > 0 {
 		ctsreql := se.combineTimeSeriesToCreateTimeSeriesRequest(timeSeries)
 		reqs = append(reqs, ctsreql...)
+		stats.Record(context.Background(), timeSeriesPerRequest.M(int64(len(timeSeries))))
 	}
 	return reqs
 }
