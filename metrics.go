@@ -459,6 +459,9 @@ func metricPointToMpbValue(pt *metricdata.Point, projectID string) (*monitoringp
 		mv.DistributionValue.BucketCounts = addZeroBucketCountOnCondition(insertZeroBound, bucketCounts...)
 		mv.DistributionValue.Exemplars = exemplars
 
+		fmt.Printf("Distribution %v\n", mv)
+		fmt.Printf("exemplars %v\n", exemplars)
+		fmt.Printf("Buckets %v\n", dv.Buckets)
 		tval = &monitoringpb.TypedValue{Value: mv}
 	}
 

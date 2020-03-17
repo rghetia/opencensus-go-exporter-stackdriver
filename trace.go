@@ -93,20 +93,25 @@ func newTraceExporterWithClient(o Options, c *tracingclient.Client) *traceExport
 
 	e.bundler = b
 	e.uploadFn = e.uploadSpans
+	e.dThr = b.DelayThreshold
 	return e
 }
+var size sync.Once
 
 // ExportSpan exports a SpanData to Stackdriver Trace.
 func (e *traceExporter) ExportSpan(s *trace.SpanData) {
 	protoSpan := protoFromSpanData(s, e.projectID, e.o.Resource)
 	protoSize := proto.Size(protoSpan)
+	size.Do(func(){
+		log.Printf("attr count: %d protoSize %d\n", len(s.Attributes), protoSize)
+	})
 	err := e.bundler.Add(protoSpan, protoSize)
 	switch err {
 	case nil:
 		return
 	case bundler.ErrOversizedItem:
 	case bundler.ErrOverflow:
-		e.overflowLogger.log()
+		e.overflowLogger.log(protoSize)
 	default:
 		e.o.handleError(err)
 	}
@@ -158,6 +163,7 @@ func (e *traceExporter) pushTraceSpans(ctx context.Context, node *commonpb.Node,
 
 // uploadSpans uploads a set of spans to Stackdriver.
 func (e *traceExporter) uploadSpans(spans []*tracepb.Span) {
+	log.Printf("upload spans %d\n", len(spans))
 	req := tracepb.BatchWriteSpansRequest{
 		Name:  "projects/" + e.projectID,
 		Spans: spans,
@@ -178,6 +184,7 @@ func (e *traceExporter) uploadSpans(spans []*tracepb.Span) {
 		span.SetStatus(trace.Status{Code: 2, Message: err.Error()})
 		e.o.handleError(err)
 	}
+	log.Println("upload spans done")
 }
 
 // overflowLogger ensures that at most one overflow error log message is
@@ -186,6 +193,8 @@ type overflowLogger struct {
 	mu    sync.Mutex
 	pause bool
 	accum int
+	scumm int
+	dThr  time.Duration
 }
 
 func (o *overflowLogger) delay() {
@@ -199,16 +208,18 @@ func (o *overflowLogger) delay() {
 		case o.accum == 1:
 			log.Println("OpenCensus Stackdriver exporter: failed to upload span: buffer full")
 			o.accum = 0
+			o.scumm = 0
 			o.delay()
 		default:
-			log.Printf("OpenCensus Stackdriver exporter: failed to upload %d spans: buffer full", o.accum)
+			log.Printf("OpenCensus Stackdriver exporter: failed to upload %d spans: buffer full. Increase buffer by %d", o.accum, int64(float64(o.scumm) * o.dThr.Seconds()/5.0))
 			o.accum = 0
+			o.scumm = 0
 			o.delay()
 		}
 	})
 }
 
-func (o *overflowLogger) log() {
+func (o *overflowLogger) log(s int) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if !o.pause {
@@ -216,5 +227,6 @@ func (o *overflowLogger) log() {
 		o.delay()
 	} else {
 		o.accum++
+		o.scumm = o.scumm + s
 	}
 }

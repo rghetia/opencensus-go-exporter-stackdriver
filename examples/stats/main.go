@@ -19,14 +19,17 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"go.opencensus.io/metric/metricdata"
 	"log"
+	"os"
+	"sync"
 	"time"
 
 	"contrib.go.opencensus.io/exporter/stackdriver"
 	"contrib.go.opencensus.io/exporter/stackdriver/monitoredresource"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/stats/view"
+	"go.opencensus.io/trace"
 )
 
 // Create measures. The program will record measures for the size of
@@ -35,6 +38,8 @@ var videoSize = stats.Int64("my.org/measure/video_size", "size of processed vide
 
 func main() {
 	ctx := context.Background()
+
+	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
 
 	// Collected view data will be reported to Stackdriver Monitoring API
 	// via the Stackdriver exporter.
@@ -47,8 +52,11 @@ func main() {
 	// See https://developers.google.com/identity/protocols/application-default-credentials
 	// for more details.
 	se, err := stackdriver.NewExporter(stackdriver.Options{
-		ProjectID:         "your-project-id", // Google Cloud Console project ID for stackdriver.
+		ProjectID:         os.Getenv("GOOGLE_CLOUD_PROJECT"), // Google Cloud Console project ID for stackdriver.
 		MonitoredResource: monitoredresource.Autodetect(),
+		BundleDelayThreshold: 2 * time.Second,
+		BundleCountThreshold: 10000,
+		TraceSpansBufferMaxBytes: 20 * 1024 * 1024,
 	})
 	se.StartMetricsExporter()
 	defer se.StopMetricsExporter()
@@ -69,15 +77,47 @@ func main() {
 		log.Fatalf("Cannot subscribe to the view: %v", err)
 	}
 
-	processVideo(ctx)
+	trace.RegisterExporter(se)
+	log.Println("Start sending")
+	wg := sync.WaitGroup{}
+	for i := 0; i< 500000; i++ {
+		wg.Add(1)
+		go func() {
+			processVideo(ctx, i)
+			wg.Done()
+		}()
+		time.Sleep(80 * time.Microsecond)
+	}
+	wg.Wait()
+	log.Println("Done sending")
 
 	// Wait for a duration longer than reporting duration to ensure the stats
 	// library reports the collected data.
-	fmt.Println("Wait longer than the reporting duration...")
-	time.Sleep(1 * time.Minute)
+	log.Println("Wait longer than the reporting duration...")
+	time.Sleep(10 * time.Second)
 }
 
-func processVideo(ctx context.Context) {
+func getSpanCtxAttachment(ctx context.Context) metricdata.Attachments {
+	attachments := map[string]interface{}{}
+	span := trace.FromContext(ctx)
+	if span == nil {
+		return attachments
+	}
+	spanCtx := span.SpanContext()
+	if spanCtx.IsSampled() {
+		attachments[metricdata.AttachmentKeySpanContext] = spanCtx
+	}
+	return attachments
+}
+
+func processVideo(ctx context.Context, attempt int) {
+	ctx, span := trace.StartSpan(ctx, "example.com/ProcessVideo")
+	//span.AddAttributes(trace.StringAttribute("attempt", "01234567890123456789"))
+	//span.AddAttributes(trace.StringAttribute("attempt1", "01234567890123456789"))
+	//span.AddAttributes(trace.StringAttribute("attempt2", "01234567890123456789"))
+	//span.AddAttributes(trace.StringAttribute("attempt3", "01234567890123456789"))
+	//span.AddAttributes(trace.StringAttribute("attempt4", "01234567890123456789"))
+	defer span.End()
 	// Do some processing and record stats.
-	stats.Record(ctx, videoSize.M(25648))
+	stats.RecordWithOptions(ctx, stats.WithMeasurements(videoSize.M(25648)), stats.WithAttachments(getSpanCtxAttachment(ctx)))
 }
