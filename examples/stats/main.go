@@ -20,6 +20,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"go.opencensus.io/metric/metricdata"
 	"log"
 	"time"
 
@@ -27,6 +28,7 @@ import (
 	"contrib.go.opencensus.io/exporter/stackdriver/monitoredresource"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/stats/view"
+	"go.opencensus.io/trace"
 )
 
 // Create measures. The program will record measures for the size of
@@ -35,6 +37,8 @@ var videoSize = stats.Int64("my.org/measure/video_size", "size of processed vide
 
 func main() {
 	ctx := context.Background()
+
+	trace.ApplyConfig(trace.Config{DefaultSampler: trace.AlwaysSample()})
 
 	// Collected view data will be reported to Stackdriver Monitoring API
 	// via the Stackdriver exporter.
@@ -74,10 +78,25 @@ func main() {
 	// Wait for a duration longer than reporting duration to ensure the stats
 	// library reports the collected data.
 	fmt.Println("Wait longer than the reporting duration...")
-	time.Sleep(1 * time.Minute)
+	time.Sleep(2 * time.Minute)
+}
+
+func getSpanCtxAttachment(ctx context.Context) metricdata.Attachments {
+	attachments := map[string]interface{}{}
+	span := trace.FromContext(ctx)
+	if span == nil {
+		return attachments
+	}
+	spanCtx := span.SpanContext()
+	if spanCtx.IsSampled() {
+		attachments[metricdata.AttachmentKeySpanContext] = spanCtx
+	}
+	return attachments
 }
 
 func processVideo(ctx context.Context) {
+	ctx, span := trace.StartSpan(ctx, "example.com/ProcessVideo")
+	defer span.End()
 	// Do some processing and record stats.
-	stats.Record(ctx, videoSize.M(25648))
+	stats.RecordWithOptions(ctx, stats.WithMeasurements(videoSize.M(25648)), stats.WithAttachments(getSpanCtxAttachment(ctx)))
 }
